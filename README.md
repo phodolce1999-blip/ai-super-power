@@ -1,6 +1,6 @@
 # AI SUPER POWER — Website MVP
 
-Website có **6 công cụ AI**, tài khoản người dùng, lịch sử, khu quản trị và kết nối OpenAI API phía máy chủ.
+Website có **6 công cụ AI**, tài khoản người dùng, lịch sử, khu quản trị và kết nối DeepSeek API (tương thích OpenAI) phía máy chủ.
 
 ## Chạy tại máy tính
 
@@ -21,12 +21,12 @@ Truy cập **http://localhost:3000**.
 
 ## Kết nối AI
 
-Đặt biến môi trường `OPENAI_API_KEY` trên máy chủ, không đưa vào HTML/JavaScript client.
+Website dùng **DeepSeek** (`https://api.deepseek.com/chat/completions`, model mặc định `deepseek-chat`). Đặt biến môi trường `DEEPSEEK_API_KEY` trên máy chủ, không đưa vào HTML/JavaScript client. Lấy key tại https://platform.deepseek.com.
 
 macOS / Linux:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+export DEEPSEEK_API_KEY="sk-..."
 export ADMIN_EMAIL="admin@yourdomain.com"
 export ADMIN_PASSWORD="a-strong-new-password"
 export SESSION_SECRET="a-long-random-value"
@@ -36,14 +36,14 @@ node server.js
 Windows PowerShell:
 
 ```powershell
-$env:OPENAI_API_KEY="sk-..."
+$env:DEEPSEEK_API_KEY="sk-..."
 $env:ADMIN_EMAIL="admin@yourdomain.com"
 $env:ADMIN_PASSWORD="a-strong-new-password"
 $env:SESSION_SECRET="a-long-random-value"
 node server.js
 ```
 
-Tùy chọn `OPENAI_MODEL` (mặc định `gpt-4.1-mini`), `PORT`, `DATA_PATH`.
+Tùy chọn: `DEEPSEEK_MODEL` (mặc định `deepseek-chat`, có thể dùng `deepseek-reasoner`), `AI_BASE_URL` (mặc định `https://api.deepseek.com`, đổi sang API tương thích OpenAI khác nếu cần), `PORT`, `DATA_PATH`. `OPENAI_API_KEY` / `OPENAI_MODEL` vẫn được đọc làm dự phòng khi không có `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`.
 
 ## Chức năng thực tế
 
@@ -59,7 +59,7 @@ Người dùng tự đăng ký, đăng nhập, xem lịch sử; quản trị xem
 ## Đưa lên hosting
 
 - Chạy Node.js 20+ với lệnh `npm start` trên Render, Railway hoặc VPS.
-- Thiết lập `OPENAI_API_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SESSION_SECRET`.
+- Thiết lập `DEEPSEEK_API_KEY`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `SESSION_SECRET`.
 - Đặt `COOKIE_SECURE=true` khi chạy HTTPS (trên Render/Railway nên bật).
 - **Lưu dữ liệu trên persistent disk** và đặt `DATA_PATH` tới ổ này. Nếu không, dữ liệu có thể mất khi triển khai lại.
 - Tuyệt đối không public mật khẩu mặc định.

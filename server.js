@@ -11,8 +11,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 const ROOT = __dirname;
 const DATA_PATH = process.env.DATA_PATH || path.join(ROOT, 'data', 'database.json');
 const PUBLIC = path.join(ROOT, 'public');
-const API_KEY = process.env.OPENAI_API_KEY || '';
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
+const API_KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || '';
+const MODEL = process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || 'deepseek-chat';
+const AI_BASE_URL = (process.env.AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/,'');
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true';
 const DEV_ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@local.test';
 const DEV_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
@@ -50,12 +51,12 @@ const DEFINITIONS={
  ideas:{name:'100 ý tưởng nội dung',system:'Bạn là content strategist. Lập ý tưởng nội dung theo nhóm chủ đề, đối tượng, mục tiêu, hook và định dạng. Nếu yêu cầu 100 ý tưởng, cung cấp đúng 100 ý tưởng được đánh số, ngắn gọn và không trùng.',starter:'Tạo 30 ý tưởng Reels trong tháng cho trung tâm đào tạo.'},
  workflow:{name:'Tự động hóa công việc',system:'Bạn là chuyên gia n8n/Make. Phân tích workflow với trigger, các bước, dữ liệu đầu vào đầu ra, nút cần tạo, điều kiện, chống trùng, xử lý lỗi và lưu ý API. Không nói rằng workflow đã kích hoạt hay đã kết nối ứng dụng.',starter:'Thiết kế luồng khi khách điền form: lưu Google Sheets và gửi email xác nhận.'}
 };
-async function invokeAI(mode,prompt){const def=DEFINITIONS[mode];if(!API_KEY)throw Object.assign(new Error('Chưa cấu hình OPENAI_API_KEY. Hệ thống đang ở chế độ demo: bạn có thể xem mẫu và lưu nội dung nhập.'),{status:503});
+async function invokeAI(mode,prompt){const def=DEFINITIONS[mode];if(!API_KEY)throw Object.assign(new Error('Chưa cấu hình DEEPSEEK_API_KEY. Hệ thống đang ở chế độ demo: bạn có thể xem mẫu và lưu nội dung nhập.'),{status:503});
  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),75000);
  try{
-  const resp=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{'authorization':`Bearer ${API_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:MODEL,instructions:`Trả lời tiếng Việt. ${def.system}`,input:prompt,max_output_tokens:mode==='ideas'?6000:2500}),signal:controller.signal});
-  const json=await resp.json();if(!resp.ok)throw Object.assign(new Error(json.error?.message||'Không thể kết nối API AI.'),{status:502});
-  const answer=(json.output||[]).flatMap(item=>(item.content||[]).filter(c=>c.type==='output_text').map(c=>c.text)).join('\n').trim();return answer||'API không trả về văn bản.';
+  const resp=await fetch(`${AI_BASE_URL}/chat/completions`,{method:'POST',headers:{'authorization':`Bearer ${API_KEY}`,'content-type':'application/json'},body:JSON.stringify({model:MODEL,messages:[{role:'system',content:`Trả lời tiếng Việt. ${def.system}`},{role:'user',content:prompt}],max_tokens:mode==='ideas'?6000:2500,stream:false}),signal:controller.signal});
+  const json=await resp.json().catch(()=>({}));if(!resp.ok)throw Object.assign(new Error(json.error?.message||`Không thể kết nối API AI (DeepSeek, HTTP ${resp.status}).`),{status:502});
+  const answer=String(json.choices?.[0]?.message?.content||'').trim();return answer||'API không trả về văn bản.';
  } finally{clearTimeout(timeout);}
 }
 async function route(req,res){const url=new URL(req.url,'http://localhost'); const pathname=url.pathname;const method=req.method;
