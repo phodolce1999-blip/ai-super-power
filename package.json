@@ -1,0 +1,12 @@
+{
+  "name": "ai-super-power",
+  "version": "1.0.0",
+  "description": "AI Super Power - 6 AI tools MVP",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

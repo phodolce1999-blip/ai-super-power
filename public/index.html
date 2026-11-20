@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Super Power</title>
+<link rel="stylesheet" href="/public/styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="login-screen" class="screen">
+    <div class="card">
+      <h1>AI Super Power</h1>
+      <p class="sub">Sáu công cụ AI trong một nơi</p>
+      <input id="email" type="email" placeholder="Email" autocomplete="username">
+      <input id="password" type="password" placeholder="Mật khẩu" autocomplete="current-password">
+      <button id="btn-login">Đăng nhập</button>
+      <p id="login-error" class="error"></p>
+    </div>
+  </div>
+  <div id="main-screen" class="screen hidden">
+    <header>
+      <h1>AI Super Power</h1>
+      <div class="header-right">
+        <span id="user-email"></span>
+        <button id="btn-logout" class="ghost">Đăng xuất</button>
+      </div>
+    </header>
+    <nav id="tools"></nav>
+    <main>
+      <section id="tool-panel">
+        <h2 id="tool-title">Chọn công cụ</h2>
+        <textarea id="prompt" placeholder="Nhập yêu cầu..."></textarea>
+        <button id="btn-run">Chạy</button>
+        <div id="result" class="result"></div>
+      </section>
+      <aside id="history-panel">
+        <h3>Lịch sử</h3>
+        <div id="history"></div>
+      </aside>
+    </main>
+    <div id="admin-panel" class="hidden">
+      <h3>Quản trị</h3>
+      <div id="admin-users"></div>
+    </div>
+  </div>
+</div>
+<script src="/public/app.js"></script>
+</body>
+</html>
