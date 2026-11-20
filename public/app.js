@@ -1,109 +1,35 @@
-const TOOLS = [
-  { id: 'studio-video', name: 'Studio Video AI' },
-  { id: 'tro-ly-rieng', name: 'Trợ lý AI riêng' },
-  { id: 'viet-quang-cao', name: 'Viết quảng cáo' },
-  { id: 'thiet-ke-slide', name: 'Thiết kế hình ảnh & slide' },
-  { id: 'y-tuong-noi-dung', name: 'Ý tưởng nội dung' },
-  { id: 'tu-dong-hoa', name: 'Tự động hóa' }
-];
-
-let currentTool = null;
-let me = null;
-
-async function api(path, opts = {}) {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, credentials: 'include', ...opts });
-  return res.json();
-}
-
-function show(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden'));
-}
-
-async function checkMe() {
-  me = await api('/api/me').catch(() => null);
-  if (me && me.user) {
-    document.getElementById('user-email').textContent = me.user.email;
-    show('main-screen'));
-    renderTools();
-    loadHistory();
-    if (me.user.role === 'admin') loadAdmin();
-  } else {
-    show('login-screen'));
-  }
-}
-
-function renderTools() {
-  const nav = document.getElementById('tools'));
-  nav.innerHTML = '';
-  TOOLS.forEach(t => {
-    const b = document.createElement('button'));
-    b.className = 'tool-btn' + (currentTool === t.id ? ' active' : '');
-    b.textContent = t.name;
-    b.onclick = () => selectTool(t.id));
-    nav.appendChild(b);
-  });
-}
-
-function selectTool(id) {
-  currentTool = id;
-  renderTools();
-  document.getElementById('tool-title').textContent = TOOLS.find(t => t.id === id).name;
-  document.getElementById('prompt').value = '';
-  document.getElementById('result').textContent = '';
-}
-
-document.getElementById('btn-login').onclick = async () => {
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  const r = await api('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-  if (r.ok) checkMe(); else document.getElementById('login-error').textContent = r.error;
-});
-
-document.getElementById('btn-logout').onclick = async () => {
-  await api('/api/logout', { method: 'POST' });
-  checkMe();
-});
-
-document.getElementById('btn-run').onclick = async () => {
-  if (!currentTool) return alert('Chọn công cụ trước'));
-  const prompt = document.getElementById('prompt').value.trim();
-  if (!prompt) return alert('Nhập yêu cầu'));
-  const btn = document.getElementById('btn-run'));
-  btn.disabled = true; btn.textContent = 'Đang chạy...';
-  const r = await api('/api/run', { method: 'POST', body: JSON.stringify({ tool: currentTool, prompt }) });
-  document.getElementById('result').textContent = r.text || r.error || 'Không có kết quả';
-  btn.disabled = false; btn.textContent = 'Chạy';
-  loadHistory();
-});
-
-async function loadHistory() {
-  const r = await api('/api/history').catch(() => ({ history: [] }));
-  const el = document.getElementById('history'));
-  el.innerHTML = '';
-  (r.history || []).forEach(h => {
-    const d = document.createElement('div'));
-    d.className = 'hist-item';
-    d.innerHTML = `<div class="t">${h.tool}</div><div class="p">${(h.prompt || '').slice(0, 60)}</div>`;
-    d.onclick = () => {
-      document.getElementById('result').textContent = h.result?.text || h.result?.error || '';
-    };
-    el.appendChild(d);
-  });
-}
-
-async function loadAdmin() {
-  const panel = document.getElementById('admin-panel'));
-  panel.classList.remove('hidden'));
-  const r = await api('/api/admin/users').catch(() => ({ users: [] }));
-  const el = document.getElementById('admin-users'));
-  el.innerHTML = '';
-  (r.users || []).forEach(u => {
-    const d = document.createElement('div'));
-    d.className = 'admin-user';
-    d.innerHTML = `<span>${u.email} (${u.role})</span>`;
-    el.appendChild(d);
-  });
-}
-
-checkMe();
+'use strict';
+const $ = id => document.getElementById(id);
+const escapeHtml = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const icons={video:'▣',assistant:'✧',ads:'◈',design:'◩',ideas:'☷',workflow:'⌘'};
+const descriptions={video:'Kịch bản, phân cảnh, lời thoại và prompt dựng Reels, TikTok, Shorts.',assistant:'Hỏi đáp và tạo quy trình điều hành cho từng công việc.',ads:'Viết quảng cáo với nhiều góc tiếp cận và lời kêu gọi hành động.',design:'Tạo brief thiết kế, bảng màu và bố cục poster, slide.',ideas:'Lên lịch chủ đề và ý tưởng nội dung theo chiến dịch.',workflow:'Thiết kế luồng n8n / Make và logic tích hợp tự động.'};
+const suggestions={video:['Video không lộ mặt 30 giây','Kịch bản review sản phẩm','5 phân cảnh cho Reels'],assistant:['Tạo SOP trả lời khách hàng','Viết kế hoạch tuần','Lập bảng phân công nhóm'],ads:['3 mẫu quảng cáo Facebook','Bài giới thiệu sản phẩm','Viết CTA thu hút'],design:['Poster 1080 × 1350','Slide thuyết trình 10 trang','Brief nhận diện thương hiệu'],ideas:['100 ý tưởng theo ngành','Lịch nội dung 30 ngày','20 hook TikTok'],workflow:['Form → Google Sheets','Lead → Email chăm sóc','Báo cáo tự động mỗi tuần']};
+let state={user:null,config:null,page:'dashboard',runs:[],register:false,lastOutput:''};
+async function request(url,opts={}){const res=await fetch(url,{credentials:'same-origin',headers:{'content-type':'application/json'},...opts});const data=await res.json().catch(()=>({}));if(!res.ok)throw Error(data.error||'Có lỗi xảy ra.');return data;}
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),4000);}
+function busy(btn,isBusy,label){btn.disabled=isBusy;btn.textContent=isBusy?'Đang xử lý...':label;}
+async function boot(){try{state.config=await request('/api/config');const {user}=await request('/api/me');state.user=user;if(user)await afterLogin();else showAuth();}catch(e){toast(e.message);showAuth();}}
+function showAuth(){$('authView').classList.remove('hidden');$('appView').classList.add('hidden');}
+function updateAuthMode(){const reg=state.register;$('authHeading').textContent=reg?'Tạo tài khoản':'Đăng nhập';$('authCaption').textContent=reg?'Tạo không gian làm việc AI cá nhân.':'Truy cập không gian làm việc AI của bạn.';$('nameRow').classList.toggle('hidden',!reg);$('authSubmit').textContent=reg?'Đăng ký →':'Đăng nhập →';$('authSwitchText').textContent=reg?'Đã có tài khoản?':'Chưa có tài khoản?';$('switchAuth').textContent=reg?'Đăng nhập':'Tạo tài khoản';$('passwordInput').setAttribute('autocomplete',reg?'new-password':'current-password');}
+$('switchAuth').onclick=()=>{state.register=!state.register;updateAuthMode();};
+$('authForm').onsubmit=async e=>{e.preventDefault();const btn=$('authSubmit');const label=state.register?'Đăng ký →':'Đăng nhập →';busy(btn,true,label);try{const route=state.register?'/api/register':'/api/login';const fields={email:$('emailInput').value,password:$('passwordInput').value};if(state.register)fields.name=$('nameInput').value;const {user}=await request(route,{method:'POST',body:JSON.stringify(fields)});state.user=user;await afterLogin();}catch(err){toast(err.message);}finally{busy(btn,false,label);}};
+async function afterLogin(){$('authView').classList.add('hidden');$('appView').classList.remove('hidden');$('profileName').textContent=state.user.name;$('profileRole').textContent=state.user.role==='admin'?'Quản trị viên':'Thành viên';$('avatar').textContent=$('miniAvatar').textContent=state.user.name[0]?.toUpperCase()||'A';$('adminLink').classList.toggle('hidden',state.user.role!=='admin');$('apiStatus').textContent=state.config.configured?'● AI ĐÃ KẾT NỐI':'● CHƯA CÓ API KEY';$('apiStatus').classList.toggle('ready',state.config.configured);try{state.runs=(await request('/api/history')).runs;}catch{state.runs=[];}navigate('dashboard');}
+$('logoutBtn').onclick=async()=>{await request('/api/logout',{method:'POST'});state.user=null;state.runs=[];showAuth();};
+$('menuToggle').onclick=()=>$('sidebar').classList.toggle('open');
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>navigate(b.dataset.page));
+function navigate(page){state.page=page;document.querySelectorAll('[data-page]').forEach(el=>el.classList.toggle('active',el.dataset.page===page));$('sidebar').classList.remove('open');const names={dashboard:'Tổng quan',history:'Lịch sử',admin:'Quản trị',...Object.fromEntries(Object.entries(state.config.tools).map(([k,v])=>[k,v.name]))};$('crumb').textContent=names[page]||'Workspace';if(page==='dashboard')renderDashboard();else if(page==='history')renderHistory();else if(page==='admin')renderAdmin();else renderTool(page);window.scrollTo({top:0,behavior:'smooth'});}
+function hero(kicker,title,desc){return `<div class="hero"><div class="page-kicker">${escapeHtml(kicker)}</div><h1>${escapeHtml(title)}</h1><p>${escapeHtml(desc)}</p></div>`;}
+function renderDashboard(){const site=state.config.settings.siteName;const total=state.runs.length;const used=new Set(state.runs.map(r=>r.mode)).size;$('content').innerHTML=`${hero('DASHBOARD / OVERVIEW','Chào, '+state.user.name+' ✦','Bắt đầu với bộ công cụ thông minh của bạn. Mọi thứ được tập trung trong một không gian làm việc.')}
+ <div class="banner"><div><span class="tag">✦ YOUR AI WORKSPACE</span><h2>${escapeHtml(site)} — Sáng tạo không giới hạn</h2><p>${escapeHtml(state.config.settings.tagline)}<br>Chọn một công cụ và biến ý tưởng thành kế hoạch có thể triển khai.</p></div><button class="primary" data-open="assistant">Bắt đầu với AI →</button></div>
+ <div class="stats"><div class="stat"><span>Công cụ có sẵn</span><strong>06</strong><small>Chuyên biệt theo công việc</small></div><div class="stat"><span>Lượt AI của bạn</span><strong>${total}</strong><small>Đã lưu trong lịch sử</small></div><div class="stat"><span>Công cụ đã trải nghiệm</span><strong>${used}/6</strong><small>Khám phá thêm tính năng</small></div></div><h2 class="grid-title">Khám phá bộ công cụ</h2><div class="tools-grid">${Object.entries(state.config.tools).map(([id,v])=>`<div class="tool-card" data-open="${id}"><div class="tool-icon">${icons[id]}</div><h3>${escapeHtml(v.name)}</h3><p>${escapeHtml(descriptions[id])}</p><span class="arrow">Mở công cụ ↗</span></div>`).join('')}</div>`;bindOpens();}
+function bindOpens(){document.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>navigate(el.dataset.open));}
+function renderTool(mode){const info=state.config.tools[mode];if(!info)return navigate('dashboard');$('content').innerHTML=`${hero('AI STUDIO / '+mode.toUpperCase(),info.name,descriptions[mode])}<div class="workspace-grid"><div class="panel"><h3>✦ Yêu cầu của bạn</h3><div class="muted">Mô tả càng cụ thể, kết quả càng sát mục tiêu.</div><label for="prompt">Nội dung đầu vào</label><textarea id="prompt" placeholder="Ví dụ: ${escapeHtml(info.starter)}"></textarea><div class="toolbar"><button class="primary" id="generateBtn">✦ Tạo bằng AI</button><button class="outline" id="sampleBtn">Dùng câu lệnh mẫu</button><button class="outline" id="clearBtn">Xóa nội dung</button></div><div class="mini-line"></div><h3>Gợi ý câu lệnh</h3><ul class="hint-list">${suggestions[mode].map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></div><div class="panel"><h3>◈ Kết quả AI</h3><div class="muted">Nội dung trả về có thể sao chép hoặc tải xuống dạng văn bản.</div><div class="output placeholder" id="output"><div class="large-icon">✦</div><strong>Sẵn sàng sáng tạo</strong><p>Nhập yêu cầu và nhấn “Tạo bằng AI” để bắt đầu.</p></div><div class="toolbar"><button class="outline" id="copyBtn">▢ Sao chép</button><button class="outline" id="downloadBtn">↓ Tải TXT</button></div></div></div>${!state.config.configured?'<div class="notice">Chưa kết nối OpenAI API. Chức năng tạo nội dung AI sẽ hoạt động sau khi cấu hình <b>OPENAI_API_KEY</b> trên máy chủ. Đây không phải là lỗi tài khoản.</div>':''}`;
+ $('prompt').value=info.starter;$('sampleBtn').onclick=()=>$('prompt').value=info.starter;$('clearBtn').onclick=()=>{$('prompt').value='';state.lastOutput='';resetOutput();};$('generateBtn').onclick=()=>generate(mode);$('copyBtn').onclick=()=>{if(!state.lastOutput)return toast('Chưa có kết quả để sao chép.');navigator.clipboard?.writeText(state.lastOutput).then(()=>toast('Đã sao chép nội dung.')).catch(()=>toast('Trình duyệt không cho phép sao chép.'));};$('downloadBtn').onclick=()=>{if(!state.lastOutput)return toast('Chưa có kết quả để tải.');const blob=new Blob([state.lastOutput],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`ai-super-power-${mode}-${new Date().toISOString().slice(0,10)}.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};}
+function resetOutput(){$('output').classList.add('placeholder');$('output').innerHTML='<div class="large-icon">✦</div><strong>Sẵn sàng sáng tạo</strong><p>Nhập yêu cầu và nhấn “Tạo bằng AI” để bắt đầu.</p>';}
+async function generate(mode){const prompt=$('prompt').value.trim();if(prompt.length<5)return toast('Hãy nhập yêu cầu tối thiểu 5 ký tự.');const btn=$('generateBtn');busy(btn,true,'✦ Tạo bằng AI');$('output').classList.remove('placeholder');$('output').textContent='AI đang phân tích yêu cầu...';try{const {run}=await request('/api/generate',{method:'POST',body:JSON.stringify({mode,prompt})});state.lastOutput=run.output;state.runs.unshift(run);$('output').textContent=run.output;toast('Đã tạo và lưu vào lịch sử.');}catch(e){$('output').textContent='Không thể tạo kết quả: '+e.message;toast(e.message);}finally{busy(btn,false,'✦ Tạo bằng AI');}}
+function renderHistory(){$('content').innerHTML=`${hero('YOUR ACTIVITY','Lịch sử làm việc','Các kết quả AI của bạn được lưu lại để truy cập sau.')}${state.runs.length?`<div class="two-col">${state.runs.map(r=>`<div class="history-entry"><strong>${icons[r.mode]} ${escapeHtml(state.config.tools[r.mode]?.name||r.mode)}</strong><small>${new Date(r.createdAt).toLocaleString('vi-VN')}</small><p>${escapeHtml(r.prompt.slice(0,170))}</p><button class="outline" data-run="${escapeHtml(r.id)}">Xem kết quả →</button></div>`).join('')}</div>`:'<div class="panel"><p class="muted">Chưa có lịch sử. Hãy tạo nội dung từ một công cụ AI.</p><button class="primary" data-open="assistant">Bắt đầu →</button></div>'}<div class="panel hidden" id="historyDetail" style="margin-top:20px"><h3>Chi tiết kết quả</h3><div class="output" id="historyOutput"></div><button class="outline" id="historyCopy">Sao chép</button></div>`;bindOpens();document.querySelectorAll('[data-run]').forEach(el=>el.onclick=()=>{const r=state.runs.find(x=>x.id===el.dataset.run);if(!r)return;state.lastOutput=r.output;$('historyDetail').classList.remove('hidden');$('historyOutput').textContent=r.output;$('historyCopy').onclick=()=>navigator.clipboard.writeText(r.output).then(()=>toast('Đã sao chép.'));$('historyDetail').scrollIntoView({behavior:'smooth'});});}
+async function renderAdmin(){if(state.user.role!=='admin')return navigate('dashboard');$('content').innerHTML=`${hero('ADMIN / CONTROL CENTER','Trung tâm quản trị','Quản lý người dùng, thống kê lượt dùng và cấu hình giao diện website.')}<div class="panel">Đang tải thống kê...</div>`;try{const [overview,users]=await Promise.all([request('/api/admin/overview'),request('/api/admin/users')]);$('content').innerHTML=`${hero('ADMIN / CONTROL CENTER','Trung tâm quản trị','Quản lý người dùng, thống kê lượt dùng và cấu hình giao diện website.')}<div class="stats"><div class="stat"><span>Tổng tài khoản</span><strong>${overview.users}</strong><small>Đã đăng ký</small></div><div class="stat"><span>Tổng lượt tạo</span><strong>${overview.runs}</strong><small>Toàn hệ thống</small></div><div class="stat"><span>Kết nối API</span><strong style="font-size:19px;color:${overview.apiReady?'#38db9a':'#efb67e'}">${overview.apiReady?'Đã bật':'Chưa bật'}</strong><small>Trạng thái hệ thống</small></div></div><div class="workspace-grid"><div class="panel"><h3>Cấu hình thương hiệu</h3><form class="settings-form" id="settingsForm"><label>Tên hệ thống<input id="siteName" maxlength="50" value="${escapeHtml(overview.settings.siteName)}"></label><label>Thông điệp ngắn<input id="tagline" maxlength="120" value="${escapeHtml(overview.settings.tagline)}"></label><button class="primary" type="submit">Lưu cài đặt</button></form><div class="mini-line"></div><h3>Đổi mật khẩu quản trị</h3><form id="passwordForm"><label>Mật khẩu hiện tại<input type="password" id="oldPass" required></label><label>Mật khẩu mới (ít nhất 10 ký tự)<input type="password" id="newPass" minlength="10" required></label><button class="outline" type="submit">Đổi mật khẩu</button></form></div><div class="panel"><h3>Lượt sử dụng theo công cụ</h3>${Object.entries(overview.byTool).map(([id,count])=>`<div class="history-entry" style="display:flex;justify-content:space-between;align-items:center"><span>${icons[id]} ${escapeHtml(state.config.tools[id].name)}</span><strong>${count}</strong></div>`).join('')}</div></div><h2 class="grid-title">Danh sách tài khoản</h2><div class="panel table-scroll"><table><thead><tr><th>Tên</th><th>Email</th><th>Vai trò</th><th>Ngày tạo</th></tr></thead><tbody>${users.users.map(u=>`<tr><td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td><td>${u.role==='admin'?'Quản trị':'Người dùng'}</td><td>${new Date(u.createdAt).toLocaleDateString('vi-VN')}</td></tr>`).join('')}</tbody></table></div><h2 class="grid-title">Hoạt động gần đây</h2><div class="panel table-scroll"><table><thead><tr><th>Thời gian</th><th>Tài khoản</th><th>Công cụ</th><th>Yêu cầu</th></tr></thead><tbody>${overview.recent.map(r=>`<tr><td>${new Date(r.createdAt).toLocaleString('vi-VN')}</td><td>${escapeHtml(r.email)}</td><td>${escapeHtml(r.mode)}</td><td>${escapeHtml(r.prompt)}</td></tr>`).join('')||'<tr><td colspan="4">Chưa có hoạt động</td></tr>'}</tbody></table></div>`;
+ $('settingsForm').onsubmit=async e=>{e.preventDefault();try{const {settings}=await request('/api/admin/settings',{method:'POST',body:JSON.stringify({siteName:$('siteName').value,tagline:$('tagline').value})});state.config.settings=settings;toast('Đã lưu cấu hình.');}catch(err){toast(err.message);}};
+ $('passwordForm').onsubmit=async e=>{e.preventDefault();try{await request('/api/password',{method:'POST',body:JSON.stringify({oldPassword:$('oldPass').value,newPassword:$('newPass').value})});$('passwordForm').reset();toast('Đã đổi mật khẩu.');}catch(err){toast(err.message);}};
+ }catch(e){toast(e.message);}}
+boot();

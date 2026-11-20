@@ -1,12 +1,8 @@
 {
-  "name": "ai-super-power",
-  "version": "1.0.0",
-  "description": "AI Super Power - 6 AI tools MVP",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  }
+  "name":"ai-super-power-starter",
+  "version":"1.0.0",
+  "private":true,
+  "description":"Bảng điều khiển 6 công cụ AI, tài khoản và quản trị",
+  "scripts":{"start":"node server.js"},
+  "engines":{"node":">=20"}
 }
